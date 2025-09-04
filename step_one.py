@@ -42,15 +42,22 @@ def download_data(ticker, start, end):
     df = df.sort_values('timestamp').reset_index(drop=True)
     return df
 
-def build_features(df, mom_delay, n_moms):
+def compute_basic_features(df):
     df = df.copy()
     df['log_returns'] = np.log(df['close'] / df['close'].shift(1))
     df['volatility_5'] = df['log_returns'].rolling(window=5).std()
     df['momentum_5'] = df['log_returns'].rolling(window=5).mean()
+    df = df.dropna(subset=['log_returns', 'volatility_5', 'momentum_5']).copy()
+    return df
+
+def build_hmm_features(df, mom_delay, n_moms):
+    df = df.copy()
+    df['log_returns'] = np.log(df['close'] / df['close'].shift(1))
+    features = ['log_returns']
     for k in range(n_moms):
         df[f'momentum_{k}'] = np.log(df['close'] / df['close'].shift(mom_delay + k))
-    df = df.replace([np.inf, -np.inf], np.nan).dropna()
-    features = ['log_returns'] + [f'momentum_{k}' for k in range(n_moms)]
+        features.append(f'momentum_{k}')
+    df = df.dropna(subset=features)
     return df, features
 
 def fit_hmm(X, n_components):
@@ -85,11 +92,11 @@ def score_curve(df, use_short=False):
     sharpe = (mu / (sd + 1e-12)) * np.sqrt(252) if sd>0 else 0.0
     return cum, sharpe
 
-# --- 1) Télécharger train/test ---
-df_train_raw = download_data(crypto, first_period_start_date, first_period_end_date)
-df_test_raw  = download_data(crypto, second_period_start_date, second_period_end_date)
+# --- 1) Télécharger train/test et calcul features de base ---
+df_train_raw = compute_basic_features(download_data(crypto, first_period_start_date, first_period_end_date))
+df_test_raw  = compute_basic_features(download_data(crypto, second_period_start_date, second_period_end_date))
 
-# --- 2) Walk-forward sur train pour meilleurs hyperparam ---
+# --- 2) Walk-forward sur train pour hyperparamètres ---
 n_train = len(df_train_raw)
 cut = int(n_train*0.8)
 df_fit_raw = df_train_raw.iloc[:cut].copy()
@@ -98,8 +105,8 @@ df_val_raw = df_train_raw.iloc[cut:].copy()
 best = {'score': -np.inf, 'params': None, 'signal_map': None, 'means': None, 'stds': None, 'features': None}
 
 for n_comp, mom_delay, n_moms in product(N_COMPONENTS_CHOICES, MOMENTUM_DELAYS, N_MOMENTUMS_CHOICES):
-    df_fit, feat = build_features(df_fit_raw, mom_delay, n_moms)
-    df_val, _   = build_features(df_val_raw, mom_delay, n_moms)
+    df_fit, feat = build_hmm_features(df_fit_raw, mom_delay, n_moms)
+    df_val, _   = build_hmm_features(df_val_raw, mom_delay, n_moms)
     if len(df_fit)<50 or len(df_val)<30:
         continue
 
@@ -137,34 +144,39 @@ mom_delay = best['params']['momentum_delay']
 n_moms    = best['params']['n_momentums']
 n_comp    = best['params']['n_components']
 
-df_train, features = build_features(df_train_raw, mom_delay, n_moms)
-X_train = df_train[features].values
+df_train_hmm, features = build_hmm_features(df_train_raw, mom_delay, n_moms)
+X_train = df_train_hmm[features].values
 means = np.nanmean(X_train, axis=0)
 stds  = np.nanstd(X_train, axis=0)
 X_train_scaled = (X_train - means)/(stds+1e-8)
 model = fit_hmm(X_train_scaled, n_comp)
 
 states_train = model.predict(X_train_scaled)
-df_train['market_regime'] = states_train
-df_train, signal_map = assign_signals_by_regime(df_train)
+df_train_hmm['market_regime'] = states_train
+df_train_hmm, signal_map = assign_signals_by_regime(df_train_hmm)
 
 # Sauvegarde du modèle
 to_save = {'model': model, 'means': means, 'stds': stds, 'signal_map': signal_map, 'features': features, 'params': best['params']}
 with open(f"{BASE_DIR}/{MODEL_PATH}", "wb") as f:
     pickle.dump(to_save, f)
 
-# --- 4) Générer train/test enrichi ---
+# --- 4) Générer CSV train enrichi ---
 df_train_out = df_train_raw.merge(
-    df_train[['timestamp', 'log_returns', 'volatility_5', 'momentum_5', 'market_regime', 'signal']],
+    df_train_hmm[['timestamp', 'market_regime', 'signal']],
     on='timestamp', how='left'
 )
 df_train_out.to_csv(f"{BASE_DIR}/{OUT_TRAIN_SIGNALS}", index=False)
 
-df_test, _ = build_features(df_test_raw, mom_delay, n_moms)
-df_test['market_regime'] = predict_no_repaint(model, (df_test[features].values - means)/(stds+1e-8))
-df_test['signal'] = pd.Series(df_test['market_regime']).map(signal_map).values
+# --- 5) Générer CSV test enrichi (no-repaint) ---
+df_test_hmm, _ = build_hmm_features(df_test_raw, mom_delay, n_moms)
+X_test = df_test_hmm[features].values
+X_test_scaled = (X_test - means)/(stds+1e-8)
+states_test = predict_no_repaint(model, X_test_scaled)
+df_test_hmm['market_regime'] = states_test
+df_test_hmm['signal'] = pd.Series(states_test).map(signal_map).values
+
 df_test_out = df_test_raw.merge(
-    df_test[['timestamp', 'log_returns', 'volatility_5', 'momentum_5', 'market_regime', 'signal']],
+    df_test_hmm[['timestamp', 'market_regime', 'signal']],
     on='timestamp', how='left'
 )
 df_test_out.to_csv(f"{BASE_DIR}/{OUT_TEST_SIGNALS}", index=False)
