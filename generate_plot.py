@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 warnings.filterwarnings("ignore")
 
 BASE_DIR = "data/data_processed_hmm"
-TEST_FILE_SIGNALS = "2-btc_with_signals_test.csv"
-MODEL_PATH = "2-models/hmm_model.pkl"
+TEST_FILE_SIGNALS = "btc_with_signals_test.csv"
+MODEL_PATH = "models/hmm_model.pkl"
 
 USE_SHORT_CURVE = False  # False = long/flat
 FEES_BPS = 0.0           # frais aller-retour (ex: 0.001 = 10bps)

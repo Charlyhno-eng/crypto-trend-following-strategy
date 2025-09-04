@@ -9,7 +9,7 @@ from hmmlearn.hmm import GaussianHMM
 
 warnings.filterwarnings("ignore")
 
-# --- Paramètres ---
+
 crypto = "BTC-USD"
 first_period_start_date  = "2014-09-17"
 first_period_end_date    = "2020-12-31"
@@ -18,20 +18,18 @@ second_period_end_date   = "2025-08-31"
 
 BASE_DIR = "data/data_processed_hmm"
 os.makedirs(BASE_DIR, exist_ok=True)
-os.makedirs(f"{BASE_DIR}/2-models", exist_ok=True)
+os.makedirs(f"{BASE_DIR}/models", exist_ok=True)
 
-TRAIN_FILE        = "1-btc_processed_train.csv"
-TEST_FILE         = "1-btc_processed_test.csv"
-MODEL_PATH        = "2-models/hmm_model.pkl"
-OUT_TRAIN_SIGNALS = "2-btc_with_signals_train.csv"
-OUT_TEST_SIGNALS  = "2-btc_with_signals_test.csv"
+MODEL_PATH        = "models/hmm_model.pkl"
+OUT_TRAIN_SIGNALS = "btc_with_signals_train.csv"
+OUT_TEST_SIGNALS  = "btc_with_signals_test.csv"
 
 # Hyperparamètres à explorer
 N_COMPONENTS_CHOICES = [2, 3, 4]
 MOMENTUM_DELAYS      = [5, 10, 20]
 N_MOMENTUMS_CHOICES  = [1, 2, 3]
 
-# --- Fonctions ---
+
 def download_data(ticker, start, end):
     df = yf.download(ticker, start=start, end=end, interval="1d").reset_index()
     if isinstance(df.columns, pd.MultiIndex):
@@ -61,8 +59,7 @@ def build_hmm_features(df, mom_delay, n_moms):
     return df, features
 
 def fit_hmm(X, n_components):
-    model = GaussianHMM(n_components=n_components, covariance_type="full",
-                        n_iter=10000, tol=1e-4, algorithm='map', random_state=42)
+    model = GaussianHMM(n_components=n_components, covariance_type="full", n_iter=10000, tol=1e-4, algorithm='map', random_state=42)
     model.fit(X)
     return model
 
@@ -70,8 +67,7 @@ def assign_signals_by_regime(df):
     regime_means = df.groupby('market_regime')['log_returns'].mean()
     long_regime  = regime_means.idxmax()
     short_regime = regime_means.idxmin()
-    signal_map = {reg: (1 if reg==long_regime else (-1 if reg==short_regime else 0))
-                  for reg in regime_means.index}
+    signal_map = {reg: (1 if reg==long_regime else (-1 if reg==short_regime else 0)) for reg in regime_means.index}
     df['signal'] = df['market_regime'].map(signal_map)
     return df, signal_map
 
