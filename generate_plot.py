@@ -7,13 +7,15 @@ from sklearn.linear_model import LinearRegression
 
 warnings.filterwarnings("ignore")
 
-BASE_DIR = "data/data_processed_hmm"
-TEST_FILE_SIGNALS = "btc_with_signals_test.csv"
+ticker = "BTC-USD"
+
+BASE_DIR = f"data/data_processed_hmm/{ticker}"
+TEST_FILE_SIGNALS = f"{ticker}_with_signals_test.csv"
 MODEL_PATH = "models/hmm_model.pkl"
 
 USE_SHORT_CURVE = False  # False = long/flat
 FEES_PCT = 0.0           # frais aller-retour en %
-TITLE = "HMM Strategy vs BTC Buy & Hold"
+TITLE = f"HMM Strategy vs {ticker} Buy & Hold"
 
 # --- Charger modèle ---
 with open(f"{BASE_DIR}/{MODEL_PATH}", "rb") as f:
@@ -86,7 +88,7 @@ print("Hyperparamètres retenus:", params)
 print("\n--- Stratégie HMM ---")
 for k,v in stats_strategy.items():
     print(f"{k}: {v:.4f}")
-print("\n--- Buy & Hold BTC ---")
+print(f"\n--- Buy & Hold {ticker} ---")
 for k,v in stats_bh.items():
     print(f"{k}: {v:.4f}")
 
@@ -94,7 +96,7 @@ for k,v in stats_bh.items():
 fig, axes = plt.subplots(3,1, figsize=(14,12), sharex=True)
 
 # Cumulatif return
-axes[0].plot(df['timestamp'], df['bh_cumret'], label="Buy & Hold BTC", color='blue')
+axes[0].plot(df['timestamp'], df['bh_cumret'], label=f"Buy & Hold {ticker}", color='blue')
 axes[0].plot(df['timestamp'], df['strategy_cumret'], label="HMM Strategy", color='orange')
 axes[0].set_ylabel("Cumulative Return")
 axes[0].set_title(f"{TITLE}\n"
@@ -107,7 +109,7 @@ axes[0].grid(True)
 
 # Drawdown
 axes[1].plot(df['timestamp'], df['strategy_dd']*100, label="HMM Strategy DD", color='orange')
-axes[1].plot(df['timestamp'], df['bh_dd']*100, label="BTC Buy & Hold DD", color='blue')
+axes[1].plot(df['timestamp'], df['bh_dd']*100, label=f"{ticker} Buy & Hold DD", color='blue')
 axes[1].set_ylabel("Drawdown (%)")
 axes[1].legend()
 axes[1].grid(True)
@@ -119,17 +121,5 @@ axes[2].set_xlabel("Date")
 axes[2].legend()
 axes[2].grid(True)
 
-plt.tight_layout()
-plt.show()
-
-# --- Histogramme des rendements ---
-plt.figure(figsize=(12,4))
-plt.hist(df['log_returns'], bins=100, alpha=0.5, label="BTC Buy & Hold")
-plt.hist(df['strategy_log_ret'], bins=100, alpha=0.5, label="HMM Strategy")
-plt.title("Histogram of Daily Returns")
-plt.xlabel("Daily log return")
-plt.ylabel("Frequency")
-plt.legend()
-plt.grid(True)
 plt.tight_layout()
 plt.show()

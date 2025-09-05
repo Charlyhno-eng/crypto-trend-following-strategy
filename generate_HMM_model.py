@@ -10,19 +10,19 @@ from hmmlearn.hmm import GaussianHMM
 warnings.filterwarnings("ignore")
 
 
-crypto = "BTC-USD"
+ticker = "BTC-USD"
 first_period_start_date  = "2014-09-17"
 first_period_end_date    = "2020-12-31"
 second_period_start_date = "2021-01-01"
 second_period_end_date   = "2025-08-31"
 
-BASE_DIR = "data/data_processed_hmm"
+BASE_DIR = f"data/data_processed_hmm/{ticker}"
 os.makedirs(BASE_DIR, exist_ok=True)
 os.makedirs(f"{BASE_DIR}/models", exist_ok=True)
 
 MODEL_PATH        = "models/hmm_model.pkl"
-OUT_TRAIN_SIGNALS = "btc_with_signals_train.csv"
-OUT_TEST_SIGNALS  = "btc_with_signals_test.csv"
+OUT_TRAIN_SIGNALS = f"{ticker}_with_signals_train.csv"
+OUT_TEST_SIGNALS  = f"{ticker}_with_signals_test.csv"
 
 # Hyperparamètres à explorer
 N_COMPONENTS_CHOICES = [2, 3, 4]
@@ -89,8 +89,8 @@ def score_curve(df, use_short=False):
     return cum, sharpe
 
 # --- 1) Télécharger train/test et calcul features de base ---
-df_train_raw = compute_basic_features(download_data(crypto, first_period_start_date, first_period_end_date))
-df_test_raw  = compute_basic_features(download_data(crypto, second_period_start_date, second_period_end_date))
+df_train_raw = compute_basic_features(download_data(ticker, first_period_start_date, first_period_end_date))
+df_test_raw  = compute_basic_features(download_data(ticker, second_period_start_date, second_period_end_date))
 
 # --- 2) Walk-forward sur train pour hyperparamètres ---
 n_train = len(df_train_raw)
